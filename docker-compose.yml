@@ -1,0 +1,59 @@
+services:
+  manager:
+    build:
+      context: ./hashPasswordsManager
+      dockerfile: Dockerfile
+    container_name: hash_manager
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - WORKER_COUNT=3
+    networks:
+      - hash_network
+    restart: unless-stopped
+
+  worker-1:
+    container_name: hashcrack-worker-1
+    build:
+      context: ./hashPasswordsWorker
+      dockerfile: Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ManagerUrl=http://hash_manager:8080
+    networks:
+      - hash_network
+    depends_on:
+      - manager
+  worker-2:
+    container_name: hashcrack-worker-2
+    build:
+      context: ./hashPasswordsWorker
+      dockerfile: Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ManagerUrl=http://hash_manager:8080
+    networks:
+      - hash_network
+    depends_on:
+      - manager
+  # worker-3:
+  #   container_name: hashcrack-worker-3
+  #   build:
+  #     context: ./hashPasswordsWorker
+  #     dockerfile: Dockerfile
+  #   environment:
+  #     - ASPNETCORE_ENVIRONMENT=Production
+  #     - ASPNETCORE_URLS=http://+:8080
+  #     - ManagerUrl=http://hash_manager:8080
+  #   networks:
+  #     - hash_network
+  #   depends_on:
+  #     - manager
+
+networks:
+  hash_network:
+    driver: bridge
