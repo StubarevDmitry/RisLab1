@@ -49,12 +49,12 @@ public class HashController : ControllerBase
 
             if (workerUrls.Count == 0)
             {
-                _logger.LogError("нет доступных воркеров");
+                _logger.LogError("РЅРµС‚Сѓ РІРѕСЂРєРµСЂРѕРІ РґР»СЏ СЂР°Р±РѕС‚С‹");
             }
 
             (string requestId, bool needWork) = _passwordStorage.CreateNew(hashInfo.Hash!, workerUrls.Count);
 
-            _logger.LogInformation("новая таска: " + requestId);
+            _logger.LogInformation("Р°Р№РґРё СЃРѕР·РґР°РЅРЅРѕР№ Р·Р°РґР°С‡Рё: " + requestId);
 
             if (needWork)
             {
@@ -112,8 +112,7 @@ public class HashController : ControllerBase
 
     private async Task DistributeTasksToWorkers(string requestId, HashInfo hashInfo, List<string> workerUrls)
     {
-        _logger.LogInformation("начало отправки тасак рабочим");
-        _logger.LogInformation("число рабочих " + workerUrls.Count);
+        _logger.LogInformation("РєРѕР»РёС‡РµСЃС‚РІРѕ РІРѕСЂРєРµСЂРѕРІ" + workerUrls.Count);
 
         var alphabet = _configuration["EnglishAlphabet"].Select(c => c.ToString()).ToList();
 
