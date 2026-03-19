@@ -37,7 +37,6 @@ builder.Services.AddSingleton<IWorkerClient, WorkerClient>();
 var app = builder.Build();
 
 app.UseCors("AllowAll");
-//app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 

@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Core.Interfaces;
 using Core.Models;
+using hashPasswordsManager.Tasks;
 using hashPasswordsManager.Services;
 using Core.Model;
-using Microsoft.Extensions.Configuration;
+using hashPasswordsManager.Storages;
 
 namespace hashPasswordsManager.Controllers;
 
@@ -12,23 +13,19 @@ namespace hashPasswordsManager.Controllers;
 public class HashController : ControllerBase
 {
     private readonly ILogger<HashController> _logger;
-    private readonly IHashedPasswordStorage _passwordStorage;
-    private readonly IWorkerClient _workerClient;
     private readonly RequestStatusService _statusService;
-    private readonly IConfiguration _configuration;
+    private readonly TaskCreationService _taskCreationService;
+    private readonly HashedPasswordStorage _hashedPasswordStorage;
 
     public HashController(
         ILogger<HashController> logger,
-        IHashedPasswordStorage passwordStorage,
         RequestStatusService statusService,
-        IConfiguration configuration,
-        IWorkerClient workerClient)
+        TaskCreationService taskCreationService,
+        HashedPasswordStorage hashedPasswordStorage)
     {
         _logger = logger;
-        _passwordStorage = passwordStorage;
         _statusService = statusService;
-        _configuration = configuration;
-        _workerClient = workerClient;
+        _taskCreationService = taskCreationService;
     }
 
     [HttpPost("crack")]
@@ -36,38 +33,19 @@ public class HashController : ControllerBase
     {
         try
         {
-            List<string> workerUrls = new List<string>();
-            var workerCount = 0;
-            workerCount = _configuration.GetValue<int>("Worker_Count");
-            if (workerCount > 0)
+            var result = await _taskCreationService.CreateTaskAsync(hashInfo);
+
+            if (!result.IsSuccess)
             {
-                for (int i = 1; i <= workerCount; i++)
-                {
-                    workerUrls.Add($"http://hashcrack-worker-{i}:8080");
-                }
+                _logger.LogError("Ошибка создания задачи: {ErrorMessage}", result.ErrorMessage);
+                return StatusCode(500, "Internal server error");
             }
 
-            if (workerUrls.Count == 0)
-            {
-                _logger.LogError("нету воркеров для работы");
-            }
-
-            (string requestId, bool needWork) = _passwordStorage.CreateNew(hashInfo.Hash!, workerUrls.Count);
-
-            _logger.LogInformation("айди созданной задачи: " + requestId);
-
-            if (needWork)
-            {
-                _statusService.RegisterRequest(requestId);
-
-                await DistributeTasksToWorkers(requestId, hashInfo, workerUrls);
-            }
-
-            return Ok(new CrackResponse(requestId));
+            return Ok(new CrackResponse(result.RequestId));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex.Message);
+            _logger.LogError(ex, "Необработанная ошибка при создании задачи");
             return StatusCode(500, "Internal server error");
         }
     }
@@ -94,57 +72,22 @@ public class HashController : ControllerBase
     {
         try
         {
-            
-            _passwordStorage.SetWorkerCompleted(
+            _hashedPasswordStorage.SetWorkerCompleted(
                 workerResponse.RequestId,
                 workerResponse.PartNumber,
-                workerResponse.Answers?.Words?.Where(x => !x.Equals(String.Empty)).ToArray(), 1
+                workerResponse.Answers?.Words?.Where(x => !x.Equals(string.Empty)).ToArray(),
+                1
             );
 
             return Ok();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex.Message);
+            _logger.LogError(ex, "Ошибка при получении результата от воркера");
             return StatusCode(500, "Internal server error");
         }
     }
 
-    private async Task DistributeTasksToWorkers(string requestId, HashInfo hashInfo, List<string> workerUrls)
-    {
-        _logger.LogInformation("количество воркеров" + workerUrls.Count);
-
-        var alphabet = _configuration["EnglishAlphabet"].Select(c => c.ToString()).ToList();
-
-
-        var tasks = new List<Task>();
-
-        for (int i = 0; i < workerUrls.Count; i++)
-        {
-            var workerRequest = new CrackHashManagerRequest
-            {
-                RequestId = requestId,
-                PartNumber = i,
-                PartCount = workerUrls.Count,
-                Hash = hashInfo.Hash!,
-                MaxLength = (int)hashInfo.MaxLength!,
-                Alphabet = new Alphabet { Symbols = alphabet.ToArray() }
-            };
-            var task = _workerClient.SendTaskToWorker(workerUrls[i], workerRequest);
-            tasks.Add(task);
-        }
-
-        try
-        {
-            await Task.WhenAll(tasks);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex.Message);
-        }
-    }
-
     public record CrackResponse(string RequestId);
-
     public record StatusResponse(string Status, string[]? Data);
 }
