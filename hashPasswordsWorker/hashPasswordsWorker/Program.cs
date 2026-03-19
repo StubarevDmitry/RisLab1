@@ -1,20 +1,26 @@
 using Worker.Services;
 
-var builder = WebApplication.CreateBuilder(args);
+internal class Program
+{
+    private static void Main(string[] args)
+    {
+        var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers()
-    .AddXmlSerializerFormatters();
+        builder.Services.AddControllers()
+            .AddXmlSerializerFormatters();
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddHttpClient();
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddHttpClient();
 
-builder.Services.AddSingleton<HashService>();
-builder.Services.AddSingleton<WorkerTaskQueue>();
-builder.Services.AddHostedService<TaskProcessorService>();
+        builder.Services.AddSingleton<HashService>();
+        builder.Services.AddSingleton<WorkerTaskQueue>();
+        builder.Services.AddHostedService<TaskProcessorService>();
 
-var app = builder.Build();
+        var app = builder.Build();
 
-app.UseAuthorization();
-app.MapControllers();
+        app.UseAuthorization();
+        app.MapControllers();
 
-app.Run();
+        app.Run();
+    }
+}
